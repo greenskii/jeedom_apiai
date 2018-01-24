@@ -1,0 +1,12 @@
+{
+	"id" : "apiai",
+	"name" : "apiai",
+	"description" : "Google Assistant",
+	"licence" : "AGPL",
+	"author" : "greenski",
+	"require" : "3.1",
+	"category" : "communication",
+	"hasDependency" : false,
+	"hasOwnDeamon" : false,
+	"maxDependancyInstallTime" : 0
+}
