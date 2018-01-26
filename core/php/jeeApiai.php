@@ -1,42 +1,69 @@
+
 <?php
+
+
+	header('Content-type: application/json');
+	require_once dirname(__FILE__) . "/../../../../core/php/core.inc.php";
+
 	
-	
-	require_once dirname(__FILE__) . "/core/php/core.inc.php";
-	if (user::isBan() && false) {
-		header("Status: 404 Not Found");
-		header('HTTP/1.0 404 Not Found');
-		$_SERVER['REDIRECT_STATUS'] = 404;
-		echo "<h1>404 Not Found</h1>";
-		echo "The page that you have requested could not be found.";
-		die();
+	function SYNC_devices() {
+
+		$sync_new = array();
+		
+		$PluginToSend = apiai::PluginToSend();
+		
+		// devices et equipements
+		$devices = apiai::discovery_eqLogic($PluginToSend);
+		
+		// scenarios (scenes)
+		$scenarios = apiai::discovery_scenario($PluginToSend);
+		
+		$sync_new = array_merge($devices, $scenarios);
+		
+		return $sync_new;
 	}
 	
 	
-	$apikey = !empty($_SERVER['HTTP_APIKEY']) ? $_SERVER['HTTP_APIKEY'] : init('apikey','');
-	file_put_contents('/tmp/bot.log', $apikey);
+	function EXECUTE_commands($commands) {
+		
+		$return = array();
+		
+		foreach($commands as $command) {
+			$return[] = apiai::execute_command($command);
+		}
+		return $return;
+	}	
 	
-	
-	if ($apikey === '' || !jeedom::apiAccess($apikey)) {
-		header("HTTP/1.1 401 Unauthorized" );
-		die;
+	function traiteInput($input){
+		switch ($input['intent']) {
+			case "action.devices.SYNC" : 
+				log::add('apiai', 'debug', 'Demande de Sync');
+				$payload = array();
+				$payload['agentUserId'] = 'jeedom-apiaiplugin-' . jeedom::getApiKey('apiai');
+				$payload['devices'] = SYNC_devices();
+				return $payload;
+				break;
+				
+			case "action.devices.QUERY" : 
+				return "QUERY";
+				break;
+				
+			case "action.devices.EXECUTE" : 
+				$payload = EXECUTE_commands($input['payload']);
+				return $payload;
+				break;
+				
+		}
 	}
-	
-	
-	$param = array(); 
 	
 	$entityBody = file_get_contents('php://input');
-	
 	$body = json_decode($entityBody, true);
-	
-	$reply = interactQuery::tryToReply($body['result']['resolvedQuery'], $param);
-	
-	if (empty($reply['reply'])){
-		$reply['reply'] = 'Je n\'ai pas compris la demande';
+	$reply['requestId'] = $body['requestId'];
+	foreach ($body['inputs'] as $input) {
+		$reply['payload'] = traiteInput($input);
 	}
 	
-	header('Content-Type', 'application/json');
-	$response = array('speech' => $reply['reply'], 'displayText' => $reply['reply']);
-	//file_put_contents('/tmp/bot.log', print_r($_SERVER, true) . ' ' . $entityBody . ' ' . $reply['reply']);
+	$response = $reply;
 	
 	echo json_encode($response);
 

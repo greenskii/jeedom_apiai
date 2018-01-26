@@ -34,6 +34,56 @@ class apiai extends eqLogic {
 	}
 
 
+/*
+** Correspondance netre les tyes génériques Jeedom et les traits et attributs Google
+** 
+** Traits possible:
+** https://developers.google.com/actions/smarthome/traits/
+** action.devices.traits.Brightness	
+** action.devices.traits.CameraStream	
+** action.devices.traits.ColorSpectrum	
+** action.devices.traits.ColorTemperature	
+** action.devices.traits.Dock	
+** action.devices.traits.Modes	
+** action.devices.traits.OnOff	
+** action.devices.traits.RunCycle	
+** action.devices.traits.Scene	
+** action.devices.traits.StartStop	
+** action.devices.traits.TemperatureSetting	
+** action.devices.traits.Toggles
+**
+**
+** DEVICE TYPE :
+** action.devices.types.CAMERA	
+** action.devices.types.DISHWASHER	
+** action.devices.types.DRYER	
+** action.devices.types.LIGHT	
+** action.devices.types.OUTLET	
+** action.devices.types.REFRIGERATOR	
+** action.devices.types.SCENE	
+** action.devices.types.SWITCH	
+** action.devices.types.THERMOSTAT	
+** action.devices.types.VACUUM	
+** action.devices.types.WASHER	
+*/
+	public static function getGATraitsAndAttributesCorrespondance() {
+		$TRAITS_AND_ATTRIBUTES_CORRESPONDANCE = array(
+					"LIGHT_STATE" => array("traits" => array("action.devices.traits.OnOff"),
+										   "attributes" => null,
+										   "type" => "action.devices.types.LIGHT"),
+				    "LIGHT_SLIDER" => array("traits" => array("action.devices.traits.Brightness"),
+										   "attributes" => null),
+				    "LIGHT_COLOR" => array("traits" => array("action.devices.traits.ColorSpectrum"),
+										   "attributes" => null),
+				    "LIGHT_COLOR_TEMP" => array("traits" => array("action.devices.traits.ColorTemperature"),
+										   "attributes" => null),
+				    "FLAP_STATE" => array("traits" => array("action.devices.traits.OnOff"),
+										   "attributes" => null,
+										   "type" => "action.devices.types.SWITCH")
+				);
+		return $TRAITS_AND_ATTRIBUTES_CORRESPONDANCE;
+	}
+
 	public static function Pluginsuported() {
 		$Pluginsuported = ['openzwave'];
 		return $Pluginsuported;
@@ -80,11 +130,9 @@ class apiai extends eqLogic {
 	}
 	
 
-	/**************************************************************************************/
-	/*                                                                                    */
-	/*            Permet de decouvrir tout les modules de la Jeedom compatible            */
-	/*                                                                                    */
-	/**************************************************************************************/
+/*
+** Cherche et liste les eq
+*/
 
 	public static function discovery_eqLogic($plugin = array(),$hash = null){
 		
@@ -100,58 +148,18 @@ class apiai extends eqLogic {
 					if($eqLogic->getObject_id() !== null && object::byId($eqLogic->getObject_id())->getDisplay('sendToApp', 1) == 1 && $eqLogic->getIsEnable() == 1 && ($eqLogic->getIsVisible() == 1 || in_array($eqLogic->getEqType_name(), self::PluginWidget()))){
 						$eqLogic_array = utils::o2a($eqLogic);
 
-						$eqLogic_array["type"] = $eqLogic_array['category'];;
-
-						
-						/*switch ($type) {
-							
-							"CAMERA" : eqLogic_array["type"] = "action.devices.types.CAMERA";
-							
-							action.devices.types.CAMERA	
-							action.devices.types.DISHWASHER	
-							action.devices.types.DRYER	
-							action.devices.types.LIGHT	
-							action.devices.types.OUTLET	
-							action.devices.types.REFRIGERATOR	
-							action.devices.types.SCENE	
-							action.devices.types.SWITCH	
-							action.devices.types.THERMOSTAT	
-							action.devices.types.VACUUM	
-							action.devices.types.WASHER	
-						}*/
-
 						$eqLogic_array["willReportState"] = false;
 						
 						// on récupere les commandes pour alimenter les "traits"
 						$traitsAndAttributes = apiai::discovery_cmd($eqLogic);
-						 $eqLogic_array["traits"] = $traitsAndAttributes["traits"];
+						$eqLogic_array["traits"] = $traitsAndAttributes["traits"];
 						$eqLogic_array["attributes"] = $traitsAndAttributes["attributes"];
-						
-						
-						
-						/*"id": "123",
-					      "type": "action.devices.types.OUTLET",
-					      "traits": [
-					        "action.devices.traits.OnOff"
-					      ],
-					      "name": {
-					        "defaultNames": ["My Outlet 1234"],
-					        "name": "Night light",
-					        "nicknames": ["wall plug"]
-					      },
-					      "willReportState": true,
-					      "deviceInfo": {
-					        "manufacturer": "lights-out-inc",
-					        "model": "hs1234",
-					        "hwVersion": "3.2",
-					        "swVersion": "11.4"
-					      },
-					      "customData": {
-					        "fooValue": 74,
-					        "barValue": true,
-					        "bazValue": "foo"
-					      }*/
-										
+						$eqLogic_array["type"] = $traitsAndAttributes['EQtype'];
+
+						$object = $eqLogic->getObject();
+						if ($object != null) {
+							$eqLogic_array["roomHint"] = $object->getName();	
+						}
 						
 						
 						// on supprime les infos qui nous interesse pas 
@@ -161,7 +169,10 @@ class apiai extends eqLogic {
 								
 						$eqLogic_array["name"] = array("name" => $eqLogic_array["name"] );
 						
-						$return[] = $eqLogic_array;
+						if ($eqLogic_array["type"] != null) {
+							$return[] = $eqLogic_array;
+						}
+						
 					}
 
 				}
@@ -175,6 +186,7 @@ class apiai extends eqLogic {
 		$traitsReturn = array();
 		$attributesReturn = array();
 		$genericisvisible = array();
+		$EQtype = null;
 	
 		log::add('apiai', 'debug', 'Discovering commands of Eq ID ' . print_r($eqLogic->getObject_id(), true) .'...');
 			
@@ -195,52 +207,26 @@ class apiai extends eqLogic {
 					log::add('apiai', 'debug', 'Command ' . print_r($i, true) .'...');
 			  					
 			    // traitements sur les traits et les attributes
-			    
-				/* Traits possible:
-					https://developers.google.com/actions/smarthome/traits/
-					action.devices.traits.Brightness	
-					action.devices.traits.CameraStream	
-					action.devices.traits.ColorSpectrum	
-					action.devices.traits.ColorTemperature	
-					action.devices.traits.Dock	
-					action.devices.traits.Modes	
-					action.devices.traits.OnOff	
-					action.devices.traits.RunCycle	
-					action.devices.traits.Scene	
-					action.devices.traits.StartStop	
-					action.devices.traits.TemperatureSetting	
-					action.devices.traits.Toggles
-				*/			  					
+			   $correspondance = apiai::getGATraitsAndAttributesCorrespondance();
 		
-			  	switch ($cmd_array['generic_type']) {
-			  	case "LIGHT_STATE"	:
-			  		$traitsReturn[] = "action.devices.traits.OnOff";
-			  		break;
-			  	case "LIGHT_SLIDER" :
-			  		$traitsReturn[] = "action.devices.traits.Brightness";
-					break;
-			  	case "LIGHT_COLOR" :
-					$traitsReturn[] = "action.devices.traits.ColorSpectrum";
-					break;
-				case "LIGHT_COLOR_TEMP" :
-					$traitsReturn[] = "action.devices.traits.ColorTemperature";
-			  		$attributesReturn[]	= '';
-			  		break;
-			  	case "FLAP_STATE" :
-			  		$traitsReturn[] = "action.devices.traits.OnOff";
-			  		$attributesReturn[]	= '';
-			  		break;
-			  	default:
-			  		//$traitsReturn[] = $cmd_array['generic_type'];
-			  	}
-			  	
-			  					
-				//$cmds_array[] = $cmd_array;
+				if (array_key_exists($cmd_array['generic_type'], $correspondance)) {
+					if ($correspondance[$cmd_array['generic_type']]["traits"] != null) 
+						foreach($correspondance[$cmd_array['generic_type']]["traits"] as $trait) $traitsReturn[] = $trait;
+
+					if ($correspondance[$cmd_array['generic_type']]["attributes"] != null) 
+						foreach($correspondance[$cmd_array['generic_type']]["attributes"] as $attribute) $attributesReturn[] = $attribute;
+
+					if (array_key_exists("type", $correspondance[$cmd_array['generic_type']]) && $correspondance[$cmd_array['generic_type']]['type'] != null)
+						$EQtype = $correspondance[$cmd_array['generic_type']]['type'];
+				} else {
+					log::add('apiai', 'debug', 'Unkown generic command type ' . print_r($cmd_array['generic_type'], true) .'...');
+				}
+
 		  		$i++;
 		  	}
 		}
-		  if ($i > 1){
-			return array("traits" => $traitsReturn, "attributes" => $attributesReturn);
+		  if ($i > 1 && $EQtype != null){
+			return array("traits" => $traitsReturn, "attributes" => $attributesReturn, "EQtype" => $EQtype);
 		}
 	
 		return [];
@@ -274,74 +260,7 @@ class apiai extends eqLogic {
 		return $array_cmd_multi;
 	}
 	
-	/*
-	public static function change_cmdAndeqLogic($cmds, $eqLogics){
-		$plage_cmd = apiai::discovery_multi($cmds);
-		$eqLogic_array = array();
-		$nbr_cmd = count($plage_cmd);
-		//log::add('apiai', 'debug', 'plage cmd > '.json_encode($plage_cmd).' // nombre > '.$nbr_cmd);
-		if($nbr_cmd != 0){
-			$i = 0;
-			while ($i < $nbr_cmd){
-				log::add('apiai', 'info', 'nbr cmd > '.$i.' // id > '.$plage_cmd[$i]);
-				$eqLogic_id = $cmds[$plage_cmd[$i]]['eqLogic_id'];
-				$name_cmd = $cmds[$plage_cmd[$i]]['name'];
-				foreach ($eqLogics as &$eqLogic){
-					if($eqLogic['id'] == $eqLogic_id){
-						$eqLogic_name = $eqLogic['name'].' / '.$name_cmd;
-					}
-				}
-				log::add('apiai', 'debug', 'nouveau nom > '.$eqLogic_name);
-				$id = $cmds[$plage_cmd[$i]]['id'];
-				$new_eqLogic_id = '999'.$eqLogic_id.''.$id;
-				$cmds[$plage_cmd[$i]]['eqLogic_id'] = $new_eqLogic_id;
-				$keys = array_keys(array_column($cmds,'eqLogic_id'),$eqLogic_id);
-				$nbr_keys = count($keys);
-				$j = 0;
-				while($j < $nbr_keys){
-					if($cmds[$keys[$j]]['value'] == $cmds[$plage_cmd[$i]]['id'] && $cmds[$keys[$j]]['type'] == 'action'){
-						log::add('apiai', 'debug', 'Changement de l\'action > '.$cmds[$keys[$j]]['id']);
-						$cmds[$keys[$j]]['eqLogic_id'] = $new_eqLogic_id;
-					}
-					$j++;
-				}
-				array_push($eqLogic_array,array($eqLogic_id, $new_eqLogic_id, $eqLogic_name));
-				$i++;
-			}
-			
-			$column_eqlogic = array_column($eqLogics,'id');
-			foreach ($eqLogic_array as &$eqlogic_array_one) {
-				$keys = array_keys($column_eqlogic, $eqlogic_array_one[0]);
-				$new_eqLogic = $eqLogics[$keys[0]];
-				$new_eqLogic['id'] = $eqlogic_array_one[1];
-				$new_eqLogic['names'] = array("name" => $eqlogic_array_one[2]);
-				array_push($eqLogics, $new_eqLogic);
-			}		
-		}
-		$new_cmds = array('cmds' => $cmds);
-		$new_eqLogic = $eqLogics;
-		$news = array($new_cmds, $new_eqLogic);
-		return $news;
-	}
-	
-	*/
-	
-	public static function discovery_object() {
-		$all = utils::o2a(object::all());
-		$return = array();
-		foreach ($all as &$object){
-			if (isset($object['display']['sendToApp']) && $object['display']['sendToApp'] == "0") {
-				continue;
-			} else {
-				unset($object['configuration'],$object['display']['tagColor'], $object['display']['tagTextColor']);
-				$return[]=$object;
-			}
-		}
-		return $return;
-	}
-	 
-	 
-	 
+
 	/*
 	**
 	** Gestion des scénarios (scenes pour Google)
@@ -379,119 +298,20 @@ class apiai extends eqLogic {
 		return $return;
 	}
 	
-	public static function discovery_message() {
-		$all = utils::o2a(message::all());
-		$return = array();
-		foreach ($all as &$message){
-				$return[]=$message;	
-		}
+	
+
+	/*
+	**
+	** Execution Jeedom de la commande
+	**
+    */
+	public static function execute_command($command) {
+		
+		$return = $command["execution"][0]["command"];
+		
 		return $return;
 	}
-	
-	public static function discovery_plan() {
-		$all = utils::o2a(planHeader::all());
-		$return = array();
-		foreach ($all as &$plan){
-          		if ($plan['image'] !== undefined){
-					unset($plan['image']);
-				}
-          		$return[]=$plan;
-		}
-		return $return;
-	}
-
-
-	public static function delete_object_eqlogic_null($objectsATraiter,$eqlogicsATraiter){
-		$retour = array();
-		foreach ($objectsATraiter as &$objectATraiter){
-			$id_object = $objectATraiter['id'];
-			foreach ($eqlogicsATraiter as &$eqlogicATraiter){
-				if ($id_object == $eqlogicATraiter['object_id']){
-					array_push($retour,$objectATraiter);
-					break;
-				}
-			}
-		}
-		return $retour;
-	}
-
-	/**************************************************************************************/
-	/*                                                                                    */
-	/*                                 Pour les notifications                             */
-	/*                                                                                    */
-	/**************************************************************************************/
-	
-	public static function jsonPublish($os,$titre,$message,$badge = 'null'){
-		if($os == 'ios'){
-			if($badge == 'null'){
-				$publish = '{"default": "Erreur de texte de notification","APNS": "{\"aps\":{\"alert\": {\"title\":\"'.$titre.'\",\"body\":\"'.$message.'\"},\"badge\":'.$badge.',\"sound\":\"silence.caf\"},\"date\":\"'.date("Y-m-d H:i:s").'\"}"}';
-			}else{
-				$publish = '{"default": "test", "APNS": "{\"aps\":{\"alert\": {\"title\":\"'.$titre.'\",\"body\":\"'.$message.'\"},\"sound\":\"silence.caf\"},\"date\":\"'.date("Y-m-d H:i:s").'\"}"}';
-			}
-		}else if($os == 'android'){
-			$publish = '{"default": "Erreur de texte de notification", "GCM": "{ \"data\": {\"notificationId\":\"'.rand(3, 5).'\",\"title\":\"'.$titre.'\",\"text\":\"'.$message.'\",\"vibrate\":\"true\",\"lights\":\"true\" } }"}';
-		}else if($os == 'microsoft'){
-			
-		}
-		return $publish;
-	}
-	
-	public static function notification($arn,$os,$titre,$message,$badge = 'null'){
-		log::add('apiai', 'debug', 'notification en cours !');
-		if($badge == 'null'){
-			$publish = apiai::jsonPublish($os,$titre,$message,$badge);
-		}else{
-			$publish = apiai::jsonPublish($os,$titre,$message);
-		}
-		log::add('apiai', 'debug', 'JSON envoyé : '.$publish);
-		$post = [
-			'id' => '1',
-			'type' => $os,
-			'arn' => $arn,
-			'publish' => $publish 
-		];
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL,apiai::LienAWS());
-		curl_setopt($ch, CURLOPT_POST, 1);
-		curl_setopt($ch, CURLOPT_POSTFIELDS,$post);            
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        $server_output = curl_exec ($ch);
-        curl_close ($ch);
-        log::add('apiai', 'debug', 'notification resultat > '.$server_output);
-	}
-	
-	/**************************************************************************************/
-	/*                                                                                    */
-	/*                         Permet de creer l'ID Unique du téléphone                   */
-	/*                                                                                    */
-	/**************************************************************************************/
-	
-	public function postInsert() {
-		$key = config::genKey(32);
-		$this->setLogicalId($key);
-		$this->save();
-	}
-	
-	public function postSave() {
-		$this->crea_cmd();
-	}
-    
-    function crea_cmd() {
-    	$cmd = $this->getCmd(null, 'notif');
-        if (!is_object($cmd)) {
-			$cmd = new apiaiCmd();
-			$cmd->setLogicalId('notif');
-			$cmd->setName(__('Notif', __FILE__));
-			$cmd->setIsVisible(1);
-			$cmd->setDisplay('generic_type', 'GENERIC_ACTION');
-		}
-		$cmd->setOrder(0);
-		$cmd->setType('action');
-		$cmd->setSubType('message');
-		$cmd->setEqLogic_id($this->getId());
-		$cmd->save();
-
-    }
+		
 	
 
 	/*     * *********************Méthodes d'instance************************* */
